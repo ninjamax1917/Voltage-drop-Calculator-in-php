@@ -1,0 +1,26 @@
+{
+  "name": "learning_php",
+  "version": "1.0.0",
+  "description": "Репозиторий создан для комфортного изучения языка PHP",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ninjamax1917/learning_php.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ninjamax1917/learning_php/issues"
+  },
+  "homepage": "https://github.com/ninjamax1917/learning_php#readme",
+  "dependencies": {
+    "tailwindcss": "^4.1.13"
+  },
+  "devDependencies": {
+    "vite": "^7.1.5"
+  }
+}
