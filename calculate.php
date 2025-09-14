@@ -1,6 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 include_once 'vendor/autoload.php';
+
+$devMode = true; // или false для продакшена
 
 $voltage = [
     'VOLTAGE_AC_220' => 'Однофазный переменный ток',
@@ -54,226 +58,138 @@ $cosifi; //коэффициент мощности
 
 $result = null; //массив для хранения результатов расчета
 
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Получение данных из формы
-    $voltageType = $_POST['voltage'];
-    if (isset($_POST['voltageValue']) && $_POST['voltageValue'] !== '') {
-        $voltageValue = floatval($_POST['voltageValue']);
-    } elseif ($voltageType === 'VOLTAGE_AC_220') {
-        $voltageValue = 220;
-    } elseif ($voltageType === 'VOLTAGE_AC_380') {
-        $voltageValue = 380;
-    } else {
-        $voltageValue = 12;
-    }
-    $methodType = $_POST['method'];
-    $material = $_POST['material'];
-    $section = $_POST['section'];
-    $temperature = floatval($_POST['temperature']);
-    $length = floatval($_POST['length']);
-    $cosifi = floatval($_POST['cosifi']);
+    $voltageType = $_POST['voltage'] ?? '';
+    $methodType = $_POST['method'] ?? '';
+    $material = $_POST['material'] ?? '';
+    $section = $_POST['section'] ?? '';
+    $temperature = $_POST['temperature'] ?? '';
+    $length = $_POST['length'] ?? '';
+    $cosifi = $_POST['cosifi'] ?? '';
+    $voltageValue = $_POST['voltageValue'] ?? '';
 
-    if ($methodType === 'current') {
-        $current = floatval($_POST['current']);
-        $power = ($voltageValue * $current) / 1000; //мощность в кВт, без cos φ
-    } else {
-        $power = floatval($_POST['power']);
-        if ($voltageType === 'VOLTAGE_DC') {
-            $current = $power / $voltageValue; // для DC cos φ не нужен
+    function validateInput(array $formData, array $voltage, array $method, array $materials, array $sections): array
+    {
+        $errors = [];
+
+        if (!isset($voltage[$formData['voltage'] ?? ''])) {
+            dd($voltage[$formData['voltage']]);
+            $errors[] = 'Выберите тип тока.';
+        }
+        if (!isset($method[$formData['method'] ?? ''])) {
+            $errors[] = 'Выберите метод расчета.';
+        }
+        if (!isset($materials[$formData['material'] ?? ''])) {
+            $errors[] = 'Выберите материал.';
+        }
+        if (!isset($sections[$formData['section'] ?? ''])) {
+            $errors[] = 'Выберите площадь сечения.';
+        }
+        if (!is_numeric($formData['temperature'] ?? '') || $formData['temperature'] < -50 || $formData['temperature'] > 100) {
+            $errors[] = 'Введите корректную температуру.';
+        }
+        if (!is_numeric($formData['length'] ?? '') || $formData['length'] <= 0) {
+            $errors[] = 'Введите корректную длину кабеля.';
+        }
+        if (!is_numeric($formData['voltageValue'] ?? '') || $formData['voltageValue'] <= 0) {
+            $errors[] = 'Введите корректное напряжение.';
+        }
+        if (($formData['method'] ?? '') === 'current') {
+            if (!isset($formData['current']) || !is_numeric($formData['current']) || $formData['current'] <= 0) {
+                $errors[] = 'Введите корректную силу тока.';
+            }
         } else {
-            $current = $power / ($voltageValue * $cosifi); // для AC учитываем cos φ
-        }
-    }
-
-    // Расчет падения напряжения
-    $resistivity = $materials[$material]; //удельное сопротивление материала
-    $sectionValue = $sections[$section]; //площадь сечения кабеля
-
-    // Корректировка удельного сопротивления в зависимости от температуры
-    if ($temperature != 20) {
-        $resistivity *= (1 + 0.004 * ($temperature - 20));
-    }
-
-    // Формула для расчета падения напряжения: ΔU = (2 * L * I * ρ) / S × cos φ
-    // Для трехфазного тока формула будет: ΔU = (√3 * L * I * ρ) / S × cos φ
-    if ($voltageType === 'VOLTAGE_AC_380') {
-        $voltageDrop = (sqrt(3) * $length * $current * $resistivity) / $sectionValue;
-    } else {
-        $voltageDrop = (2 * $length * $current * $resistivity) / $sectionValue;
-    }
-
-    // Расчет процента падения напряжения
-    $voltageDropPercent = ($voltageDrop / $voltageValue) * 100;
-
-    $result = [
-        'voltageDrop_number' => round($voltageDrop, 2),
-        'voltageDrop_percent' => round($voltageDropPercent, 2),
-    ];
-}
-?>
-
-
-<!DOCTYPE html>
-<html lang="ru">
-
-<head>
-    <meta charset="UTF-8">
-    <title>Расчет кабеля</title>
-    <style>
-        form label {
-            display: block;
-            margin-bottom: 10px;
-        }
-
-        .result {
-            margin-top: 20px;
-            padding: 10px;
-            background: #f0f0f0;
-        }
-    </style>
-    <script>
-        function toggleFields() {
-            var method = document.getElementById('method').value;
-            var voltageType = document.getElementById('voltage').value;
-            var isDC = voltageType === 'VOLTAGE_DC';
-            document.getElementById('current-fields').style.display = method === 'current' ? 'block' : 'none';
-            document.getElementById('power-fields').style.display = method === 'power' ? 'block' : 'none';
-            var cosifiLabel = document.querySelector('#power-fields label:has([name="cosifi"])');
-            if (cosifiLabel) {
-                cosifiLabel.style.display = isDC ? 'none' : (method === 'power' ? 'block' : 'none');
+            if (!isset($formData['power']) || !is_numeric($formData['power']) || $formData['power'] <= 0) {
+                $errors[] = 'Введите корректную мощность.';
+            }
+            if (($formData['voltage'] ?? '') !== 'VOLTAGE_DC' && (!is_numeric($formData['cosifi'] ?? '') || $formData['cosifi'] <= 0 || $formData['cosifi'] > 1)) {
+                $errors[] = 'Введите корректный коэффициент мощности.';
             }
         }
+        return $errors;
+    }
 
-        function setDefaultVoltage() {
-            var voltageType = document.getElementById('voltage').value;
-            var voltageValueField = document.getElementById('voltageValue');
-            if (voltageType === 'VOLTAGE_AC_220') {
-                voltageValueField.value = 220;
-            } else if (voltageType === 'VOLTAGE_AC_380') {
-                voltageValueField.value = 380;
+    function calculateResult(array $formData, array $materials, array $sections): array
+    {
+        $voltageType = $formData['voltage'];
+        $methodType = $formData['method'];
+        $material = $formData['material'];
+        $section = $formData['section'];
+        $temperature = floatval($formData['temperature']);
+        $length = floatval($formData['length']);
+        $cosifi = floatval($formData['cosifi']);
+        $voltageValue = floatval($formData['voltageValue']);
+
+        if ($methodType === 'current') {
+            $current = floatval($formData['current']);
+            $power = ($voltageValue * $current) / 1000;
+        } else {
+            $power = floatval($formData['power']);
+            if ($voltageType === 'VOLTAGE_DC') {
+                $current = $power / $voltageValue;
             } else {
-                voltageValueField.value = 12;
+                $current = $power / ($voltageValue * $cosifi);
             }
         }
-        window.onload = function() {
-            toggleFields();
-            setDefaultVoltage();
-        };
 
-        // AJAX отправка формы
-        function submitForm(event) {
-            event.preventDefault();
-            var form = document.getElementById('calcForm');
-            var formData = new FormData(form);
+        $resistivity = $materials[$material];
+        $sectionValue = $sections[$section];
 
-            fetch('', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.text())
-                .then(html => {
-                    // Получаем только блок результата из ответа
-                    var parser = new DOMParser();
-                    var doc = parser.parseFromString(html, 'text/html');
-                    var resultBlock = doc.querySelector('.result');
-                    document.getElementById('result-block').innerHTML = resultBlock ? resultBlock.outerHTML : '';
-                });
+        if ($temperature != 20) {
+            $resistivity *= (1 + 0.004 * ($temperature - 20));
         }
-    </script>
-</head>
 
-<body>
-    <form id="calcForm" action="" method="post" onsubmit="submitForm(event)">
-        <label>
-            Тип тока:
-            <select name="voltage" id="voltage" onchange="setDefaultVoltage(); toggleFields();">
-                <?php foreach ($voltage as $key => $label): ?>
-                    <option value="<?= htmlspecialchars($key) ?>"
-                        <?= (isset($_POST['voltage']) && $_POST['voltage'] === $key) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($label) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>
-            Напряжение сети, В:
-            <input type="number" step="any" name="voltageValue" id="voltageValue"
-                value="<?= isset($_POST['voltageValue']) ? htmlspecialchars($_POST['voltageValue']) : '220' ?>">
-        </label>
-        <label>
-            Метод расчета:
-            <select name="method" id="method" onchange="toggleFields()">
-                <?php foreach ($method as $key => $label): ?>
-                    <option value="<?= htmlspecialchars($key) ?>"
-                        <?= (isset($_POST['method']) && $_POST['method'] === $key) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($label) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>
-            Материал:
-            <select name="material">
-                <?php foreach ($materials as $name => $value): ?>
-                    <option value="<?= htmlspecialchars($name) ?>"
-                        <?= (isset($_POST['material']) && $_POST['material'] === $name) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($name) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>
-            Длина кабеля (м):
-            <input type="number" step="any" name="length"
-                value="<?= isset($_POST['length']) ? htmlspecialchars($_POST['length']) : '' ?>">
-        </label>
-        <label>
-            Площадь сечения:
-            <select name="section">
-                <?php foreach ($sections as $name => $value): ?>
-                    <option value="<?= htmlspecialchars($name) ?>"
-                        <?= (isset($_POST['section']) && $_POST['section'] === $name) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($name) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
+        if ($voltageType === 'VOLTAGE_AC_380') {
+            $voltageDrop = (sqrt(3) * $length * $current * $resistivity) / $sectionValue;
+        } else {
+            $voltageDrop = (2 * $length * $current * $resistivity) / $sectionValue;
+        }
 
-        <div id="current-fields">
-            <label>
-                Сила тока (A):
-                <input type="number" step="any" name="current"
-                    value="<?= isset($_POST['current']) ? htmlspecialchars($_POST['current']) : '' ?>">
-            </label>
-        </div>
-        <div id="power-fields">
-            <label>
-                Мощность (Вт):
-                <input type="number" step="any" name="power"
-                    value="<?= isset($_POST['power']) ? htmlspecialchars($_POST['power']) : '' ?>">
-            </label>
-            <label>
-                Коэффициент мощности (cos φ):
-                <input type="number" step="any" name="cosifi" min="0" max="1"
-                    value="<?= isset($_POST['cosifi']) ? htmlspecialchars($_POST['cosifi']) : '' ?>">
-            </label>
-        </div>
-        <label>
-            Температура кабеля (°C):
-            <input type="number" step="any" name="temperature"
-                value="<?= isset($_POST['temperature']) ? htmlspecialchars($_POST['temperature']) : '20' ?>">
-        </label>
-        <button type="submit">Рассчитать</button>
-    </form>
-    <div id="result-block">
-        <?php if ($result): ?>
-            <div class="result">
-                <strong>Результаты расчета:</strong><br>
-                Падение напряжения: <?= $result['voltageDrop_number'] ?> В
-                (<?= $result['voltageDrop_percent'] ?> %)<br>
-            </div>
-        <?php endif; ?>
-    </div>
-</body>
+        $voltageDropPercent = ($voltageDrop / $voltageValue) * 100;
 
-</html>
+        return [
+            'voltageDrop_number' => round($voltageDrop, 2),
+            'voltageDrop_percent' => round($voltageDropPercent, 2),
+            'current' => round($current, 2),
+            'power' => round($power, 2),
+        ];
+    }
+
+    $result = null;
+    $errors = [];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $formData = [
+            'voltage' => $_POST['voltage'] ?? '',
+            'method' => $_POST['method'] ?? '',
+            'material' => $_POST['material'] ?? '',
+            'section' => $_POST['section'] ?? '',
+            'temperature' => $_POST['temperature'] ?? '',
+            'length' => $_POST['length'] ?? '',
+            'cosifi' => $_POST['cosifi'] ?? '',
+            'voltageValue' => $_POST['voltageValue'] ?? '',
+            'current' => $_POST['current'] ?? '',
+            'power' => $_POST['power'] ?? '',
+        ];
+
+        $errors = validateInput($formData, $voltage, $method, $materials, $sections);
+
+        if (!$errors) {
+            // Значение напряжения по умолчанию
+            if ($formData['voltageValue'] === '') {
+                if ($formData['voltage'] === 'VOLTAGE_AC_220') {
+                    $formData['voltageValue'] = 220;
+                } elseif ($formData['voltage'] === 'VOLTAGE_AC_380') {
+                    $formData['voltageValue'] = 380;
+                } else {
+                    $formData['voltageValue'] = 12;
+                }
+            }
+            $result = calculateResult($formData, $materials, $sections);
+        }
+    }
+}
+
+include 'template.php';

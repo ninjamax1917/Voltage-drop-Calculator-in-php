@@ -1,0 +1,10 @@
+ form label {
+     display: block;
+     margin-bottom: 10px;
+ }
+
+ .result {
+     margin-top: 20px;
+     padding: 10px;
+     background: #f0f0f0;
+ }
