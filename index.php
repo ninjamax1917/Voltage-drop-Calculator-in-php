@@ -51,46 +51,48 @@ $length; //длина кабеля
 
 $cosifi; //коэффициент мощности
 
-
+$results = []; //массив для хранения результатов расчета
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $voltage_key = $_POST['voltage'] ?? 'VOLTAGE_AC_220';
-    $voltage_label = $voltage[$voltage_key] ?? '220 В (AC)';
-    $method_key = $_POST['method'] ?? 'current';
-    $method_label = $method[$method_key] ?? 'По току';
-    $materials = floatval($_POST['materials']);
+    // Получение данных из формы
+    $voltageType = $_POST['voltage'];
+    $methodType = $_POST['method'];
+    $material = $_POST['material'];
+    $section = $_POST['section'];
+    $temperature = floatval($_POST['temperature']);
     $length = floatval($_POST['length']);
-    $sections = floatval($_POST['sections']);
-}
-    if ($method_key === 'current') {
+    $cosifi = floatval($_POST['cosifi']);
+
+    if ($voltageType === 'VOLTAGE_AC_220') {
+        $voltageValue = 220;
+    } elseif ($voltageType === 'VOLTAGE_AC_380') {
+        $voltageValue = 380;
+    } else {
+        $voltageValue = 12; //для постоянного тока берем стандартное значение 12В
+    }
+
+    if ($methodType === 'current') {
         $current = floatval($_POST['current']);
-    } elseif ($method_key === 'power') {
+        $power = ($voltageValue * $current * $cosifi) / 1000; //мощность в кВт
+    } else {
         $power = floatval($_POST['power']);
-        $cosifi = floatval($_POST['cosifi']);
+        $current = ($power * 1000) / ($voltageValue * $cosifi); //ток в А
     }
 
-    // Определение напряжения на основе выбора пользователя
-    switch ($voltage_key) {
-        case 'VOLTAGE_AC_220':
-            $voltageValue = 220;
-            break;
-        case 'VOLTAGE_AC_380':
-            $voltageValue = 380;
-            break;
-        case 'VOLTAGE_DC':
-            $voltageValue = 220; // Предполагаем стандартное значение для DC
-            break;
-        default:
-            $voltageValue = 220; // Значение по умолчанию
+    // Расчет падения напряжения
+    $resistivity = $materials[$material]; //удельное сопротивление материала
+    $sectionValue = $sections[$section]; //площадь сечения кабеля
+
+    // Корректировка удельного сопротивления в зависимости от температуры
+    if ($temperature != 20) {
+        $resistivity *= (1 + 0.004 * ($temperature - 20));
     }
 
-    // Расчет силы тока, если выбран метод по мощности
-    if ($method_key === 'power' && isset($power) && isset($cosifi) && $cosifi > 0) {
-        if ($voltage_key === 'VOLTAGE_AC_380') {
-            // Для трехфазного тока
-            $current = $power / (sqrt(3) * $voltageValue * $cosifi);
-        } else {
-            // Для однофазного тока и постоянного тока
-            $current = $power / ($voltageValue * $cosifi);
-        }
+    // Формула для расчета падения напряжения: ΔU = (2 * L * I * ρ) / S
+    // Для трехфазного тока формула будет: ΔU = (√3 * L * I * ρ) / S
+    if ($voltageType === 'VOLTAGE_AC_380') {
+        $voltageDrop = (sqrt(3) * $length * $current * $resistivity) / $sectionValue;
+    } else {
+        $voltageDrop = (2 * $length * $current * $resistivity) / $sectionValue;
     }
+}
