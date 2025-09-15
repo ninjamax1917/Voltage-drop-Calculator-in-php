@@ -9,8 +9,7 @@
 </head>
 
 <body>
-
-    <form id="calcForm" action="" method="post" <?php if (!$devMode): ?>onsubmit="submitForm(event)" <?php endif; ?>>
+    <form id="calcForm" action="calculate_procedural_style.php" method="post" <?php if (!$devMode): ?>onsubmit="submitForm(event)" <?php endif; ?>>
         <label>
             Тип тока:
             <select name="voltage" id="voltage" onchange="setDefaultVoltage(); toggleFields();">
@@ -102,12 +101,12 @@
         <?php elseif ($result): ?>
             <div class="result">
                 <strong>Результаты расчета:</strong><br>
-                Падение напряжения: <?= $result['voltageDrop_number'] ?> В
+                Падение напряжения (ΔU, В(%)): <?= $result['voltageDrop_number'] ?> В
                 (<?= $result['voltageDrop_percent'] ?> %)<br>
                 <?php if ($_POST['method'] === 'power'): ?>
-                    Сила тока: <?= $result['current'] ?> А<br>
+                    Сила тока (I, А): <?= $result['current'] ?> А<br>
                 <?php elseif ($_POST['method'] === 'current'): ?>
-                    Мощность: <?= $result['power'] ?> кВт<br>
+                    Мощность (P, кВт): <?= $result['power'] ?> кВт<br>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
