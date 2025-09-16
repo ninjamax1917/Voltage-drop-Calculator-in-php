@@ -64,7 +64,18 @@
                 <?php endforeach; ?>
             </select>
         </label>
-
+        <label>
+            Количество кабелей:
+            <select name="number_of_cables">
+                <?php foreach ($number_of_cables as $num => $val): ?>
+                    <?php $numStr = (string)$num; ?>
+                    <option value="<?= htmlspecialchars($numStr) ?>"
+                        <?= (isset($_POST['number_of_cables']) && (string)$_POST['number_of_cables'] === $numStr) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($numStr) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </label>
         <div id="current-fields">
             <label>
                 Сила тока (A):

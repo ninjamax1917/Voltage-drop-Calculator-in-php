@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 include_once 'vendor/autoload.php';
 
-$devMode = true; // или false для продакшена
+$devMode = false; // или false для продакшена
 
 const TEMP_COEFF = 0.004; //температурный коэффициент сопротивления
 const DEFAULT_TEMP = 20; //дефолтная температура, при которой указано удельное сопротивление
@@ -45,6 +45,15 @@ $sections = [
     '150 мм²' => 150,
     '185 мм²' => 185,
     '240 мм²' => 240
+];
+
+$number_of_cables = [
+    '1' => 1,
+    '2' => 2,
+    '3' => 3,
+    '4' => 4,
+    '5' => 5,
+    '6' => 6,
 ];
 
 $result = null;
@@ -94,6 +103,7 @@ function calculateResult(array $formData, array $materials, array $sections): ar
     $length = floatval($formData['length']);
     $cosifi = floatval($formData['cosifi']);
     $voltageValue = floatval($formData['voltageValue']);
+    $number_of_cables = isset($formData['number_of_cables']) ? (int)$formData['number_of_cables'] : 1;
 
     if ($methodType === 'current') {
         $current = floatval($formData['current']);
@@ -115,9 +125,9 @@ function calculateResult(array $formData, array $materials, array $sections): ar
     }
 
     if ($voltageType === 'VOLTAGE_AC_380') {
-        $voltageDrop = (sqrt(3) * $length * $current * $resistivity) / $sectionValue;
+        $voltageDrop = (sqrt(3) * $length * $current * $resistivity) / ($sectionValue * $number_of_cables);
     } else {
-        $voltageDrop = (2 * $length * $current * $resistivity) / $sectionValue;
+        $voltageDrop = (2 * $length * $current * $resistivity) / ($sectionValue * $number_of_cables);
     }
 
     $voltageDropPercent = ($voltageDrop / $voltageValue) * 100;
@@ -175,6 +185,11 @@ $validationRules = [
         'required' => 'Введите напряжение.',
         'numeric' => ['min' => 0.01, 'max' => 10000, 'message' => 'Введите корректное напряжение.'],
     ],
+    'number_of_cables' => [
+        'required' => 'Выберите количество кабелей.',
+        // array_keys() вернёт числовые ключи (int), приводим их к строкам для строгой проверки
+        'in' => ['values' => array_map('strval', array_keys($number_of_cables)), 'message' => 'Некорректное количество кабелей.'],
+    ],
     'current' => [
         // Проверка только если выбран метод "current"
         // В основной логике ниже добавим динамическую проверку
@@ -199,6 +214,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
         'voltageValue' => $_POST['voltageValue'] ?? '',
         'current' => $_POST['current'] ?? '',
         'power' => $_POST['power'] ?? '',
+        'number_of_cables' => $_POST['number_of_cables'] ?? '1',
     ];
 
     // Динамические проверки для current/power/cosifi
